@@ -11,18 +11,26 @@ use csv::Writer;
 use poly_commit::deepfold::{DeepFoldParam, DeepFoldProver, DeepFoldVerifier};
 use rand::thread_rng;
 
-use hyperplonk::{circuit::Circuit, prover::Prover, verifier::Verifier};
+use hyperplonk::{circuit::Circuit, prover::Prover, sumcheck::Sumcheck, verifier::Verifier};
 
 fn main() {
     let mut wtr = Writer::from_path("deepfold_snark.csv").unwrap();
-    wtr.write_record(["nv", "prover_time", "proof_size", "verifier_time"])
-        .unwrap();
-    let (prover_time, proof_size, verifier_time) = bench_mock_circuit(20, 1);
-    wtr.write_record([20, prover_time, proof_size, verifier_time].map(|x| x.to_string()))
-        .unwrap();
+    wtr.write_record([
+        "nv",
+        "prover_time",
+        "sumcheck_time",
+        "proof_size",
+        "verifier_time",
+    ])
+    .unwrap();
+    let (prover_time, sumcheck_time, proof_size, verifier_time) = bench_mock_circuit(18, 1);
+    wtr.write_record(
+        [18, prover_time, sumcheck_time, proof_size, verifier_time].map(|x| x.to_string()),
+    )
+    .unwrap();
 }
 
-fn bench_mock_circuit(nv: u32, repetition: usize) -> (usize, usize, usize) {
+fn bench_mock_circuit(nv: u32, repetition: usize) -> (usize, usize, usize, usize) {
     let num_gates = 1u32 << nv;
     let mock_circuit = Circuit::<Goldilocks64Ext> {
         permutation: [
@@ -58,17 +66,19 @@ fn bench_mock_circuit(nv: u32, repetition: usize) -> (usize, usize, usize) {
             -((Goldilocks64::one() - s) * (a[i] + b[i]) + s * a[i] * b[i])
         })
         .collect::<Vec<_>>();
+    Sumcheck::reset_timing();
     let start = Instant::now();
     for _ in 0..repetition - 1 {
         let _proof = prover.prove(&pp, nv as usize, [a.clone(), b.clone(), c.clone()]);
     }
     let proof = prover.prove(&pp, nv as usize, [a, b, c]);
     let prover_time = start.elapsed().as_micros() as usize / repetition;
+    let sumcheck_time = Sumcheck::prove_time_us() as usize / repetition;
     let proof_size = proof.bytes.len();
 
     let start = Instant::now();
     assert!(verifier.verify(&pp, nv as usize, proof));
     let verifier_time = start.elapsed().as_micros() as usize;
 
-    (prover_time, proof_size, verifier_time)
+    (prover_time, sumcheck_time, proof_size, verifier_time)
 }

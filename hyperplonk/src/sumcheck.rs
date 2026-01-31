@@ -1,9 +1,22 @@
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Instant;
+
 use arithmetic::field::{batch_inverse, Field};
 use util::fiat_shamir::{Proof, Transcript};
+
+static SUMCHECK_PROVE_TIME_US: AtomicU64 = AtomicU64::new(0);
 
 pub struct Sumcheck;
 
 impl Sumcheck {
+    pub fn reset_timing() {
+        SUMCHECK_PROVE_TIME_US.store(0, Ordering::Relaxed);
+    }
+
+    pub fn prove_time_us() -> u64 {
+        SUMCHECK_PROVE_TIME_US.load(Ordering::Relaxed)
+    }
+
     fn fold_next_domain<F: Field>(poly_evals: &mut Vec<F>, m: usize, challenge: F) {
         for j in 0..m {
             poly_evals[j] =
@@ -18,6 +31,7 @@ impl Sumcheck {
         transcript: &mut Transcript,
         f: FUNC,
     ) -> (Vec<F>, [F; N]) {
+        let start = Instant::now();
         let var_num = evals[0].len().ilog2() as usize;
         let mut new_point = vec![];
         for i in 0..var_num {
@@ -60,7 +74,9 @@ impl Sumcheck {
                 Self::fold_next_domain(j, m / 2, challenge)
             }
         }
-        (new_point, evals.map(|x| x[0]))
+        let result = (new_point, evals.map(|x| x[0]));
+        SUMCHECK_PROVE_TIME_US.fetch_add(start.elapsed().as_micros() as u64, Ordering::Relaxed);
+        result
     }
 
     fn init_base<F: Field>(n: usize) -> Vec<F> {
