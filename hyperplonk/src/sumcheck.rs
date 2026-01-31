@@ -164,7 +164,7 @@ impl Sumcheck {
         var_num: usize,
         transcript: &mut Transcript,
         proof: &mut Proof,
-    ) -> (Vec<F>, [F; M]) {
+    ) -> Option<(Vec<F>, [F; M])> {
         let mut res = vec![];
         let base = Self::init_base(degree);
         for _ in 0..var_num {
@@ -178,7 +178,9 @@ impl Sumcheck {
                 sum
             });
             for j in 0..M {
-                assert_eq!(sums[j][0] + sums[j][1], y[j]);
+                if sums[j][0] + sums[j][1] != y[j] {
+                    return None;
+                }
             }
             let challenge: F = transcript.challenge_f();
             res.push(challenge);
@@ -186,16 +188,13 @@ impl Sumcheck {
                 y[j] = Self::uni_extrapolate(&base, &sums[j], challenge);
             }
         }
-        (res, y)
+        Some((res, y))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use arithmetic::{
-        field::{bn_254::Bn254F, goldilocks64::Goldilocks64Ext, Field},
-        poly::MultiLinearPoly,
-    };
+    use arithmetic::{field::{bn_254::Bn254F, Field}, poly::MultiLinearPoly};
     use rand::thread_rng;
     use util::fiat_shamir::Transcript;
 
@@ -231,7 +230,9 @@ mod tests {
         });
         let mut proof = transcript.proof;
         let mut transcript = Transcript::new();
-        let (point, y) = Sumcheck::verify(y, 3, 12, &mut transcript, &mut proof);
+        let (point, y) =
+            Sumcheck::verify(y, 3, 12, &mut transcript, &mut proof)
+                .expect("sumcheck verification failed");
         assert_eq!(
             (MultiLinearPoly::eval_multilinear_ext(&a, &point)
                 * MultiLinearPoly::eval_multilinear_ext(&b, &point)

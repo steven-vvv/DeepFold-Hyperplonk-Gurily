@@ -3,9 +3,6 @@ pub struct Goldilocks64 {
     v: u64,
 }
 const MOD: u64 = 18446744069414584321u64; // 2**64 - 2**32 + 1
-const HIGH: u128 = (1u128 << 127) - (1u128 << 96) + (1u128 << 127);
-const MIDDLE: u128 = (1u128 << 96) - (1u128 << 64);
-const LOW: u128 = (1u128 << 64) - 1;
 
 impl std::ops::Neg for Goldilocks64 {
     type Output = Goldilocks64;

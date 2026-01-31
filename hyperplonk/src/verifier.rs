@@ -27,8 +27,16 @@ impl<F: Field, PC: PolyCommitVerifier<F>> Verifier<F, PC> {
         let r = (0..nv)
             .map(|_| transcript.challenge_f::<F>())
             .collect::<Vec<_>>();
-        let (sumcheck_point, claim_y) =
-            Sumcheck::verify([F::zero()], 4, nv, &mut transcript, &mut proof);
+        let (sumcheck_point, claim_y) = match Sumcheck::verify(
+            [F::zero()],
+            4,
+            nv,
+            &mut transcript,
+            &mut proof,
+        ) {
+            Some(result) => result,
+            None => return false,
+        };
         let claim_s: F = proof.get_next_and_step();
         transcript.append_f(claim_s);
         let claim_w0: F = proof.get_next_and_step();
@@ -38,17 +46,23 @@ impl<F: Field, PC: PolyCommitVerifier<F>> Verifier<F, PC> {
         let claim_w2: F = proof.get_next_and_step();
         transcript.append_f(claim_w2);
         let eq_v = MultiLinearPoly::eval_eq(&r, &sumcheck_point);
-        assert_eq!(
-            claim_y[0],
-            eq_v * ((F::one() - claim_s) * (claim_w0 + claim_w1)
-                + claim_s * claim_w0 * claim_w1
-                + claim_w2)
-        );
+        if claim_y[0]
+            != eq_v
+                * ((F::one() - claim_s) * (claim_w0 + claim_w1)
+                    + claim_s * claim_w0 * claim_w1
+                    + claim_w2)
+        {
+            return false;
+        }
 
         let r_1: F = transcript.challenge_f();
         let r_2: F = transcript.challenge_f();
 
-        let (prod_point, y) = ProdEqCheck::verify::<F>(nv + 2, &mut transcript, &mut proof);
+        let (prod_point, y) = match ProdEqCheck::verify::<F>(nv + 2, &mut transcript, &mut proof)
+        {
+            Some(result) => result,
+            None => return false,
+        };
         let witness_eval = [0; 3].map(|_| {
             let x: F = proof.get_next_and_step();
             transcript.append_f(x);
@@ -60,7 +74,8 @@ impl<F: Field, PC: PolyCommitVerifier<F>> Verifier<F, PC> {
             x
         });
 
-        assert_eq!(y[0], {
+        if y[0]
+            != {
             let v = vec![
                 r_1 + witness_eval[0]
                     + r_2 * MultiLinearPoly::eval_identical(&prod_point[..nv].to_vec(), F::zero()),
@@ -79,8 +94,12 @@ impl<F: Field, PC: PolyCommitVerifier<F>> Verifier<F, PC> {
                 r_1,
             ];
             MultiLinearPoly::eval_multilinear_ext(&v, &prod_point[nv..])
-        });
-        assert_eq!(y[1], {
+        }
+        {
+            return false;
+        }
+        if y[1]
+            != {
             let v = vec![
                 r_1 + witness_eval[0] + r_2 * perm_eval[0],
                 r_1 + witness_eval[1] + r_2 * perm_eval[1],
@@ -88,9 +107,12 @@ impl<F: Field, PC: PolyCommitVerifier<F>> Verifier<F, PC> {
                 r_1,
             ];
             MultiLinearPoly::eval_multilinear_ext(&v, &prod_point[nv..])
-        });
+        }
+        {
+            return false;
+        }
         let r: F = transcript.challenge_f();
-        let (point, y) = Sumcheck::verify(
+        let (point, y) = match Sumcheck::verify(
             [
                 claim_s + r * (claim_w0 + r * (claim_w1 + r * claim_w2)),
                 perm_eval[0]
@@ -102,7 +124,10 @@ impl<F: Field, PC: PolyCommitVerifier<F>> Verifier<F, PC> {
             nv,
             &mut transcript,
             &mut proof,
-        );
+        ) {
+            Some(result) => result,
+            None => return false,
+        };
         let claim_s: F = proof.get_next_and_step();
         transcript.append_f(claim_s);
         let perm_eval = [0; 3].map(|_| {
@@ -115,20 +140,22 @@ impl<F: Field, PC: PolyCommitVerifier<F>> Verifier<F, PC> {
             transcript.append_f(x);
             x
         });
-        assert_eq!(
-            y[0],
-            (claim_s + r * (witness_eval[0] + r * (witness_eval[1] + r * witness_eval[2])))
+        if y[0]
+            != (claim_s + r * (witness_eval[0] + r * (witness_eval[1] + r * witness_eval[2])))
                 * MultiLinearPoly::eval_eq(&sumcheck_point, &point)
-        );
-        assert_eq!(
-            y[1],
-            (perm_eval[0]
+        {
+            return false;
+        }
+        if y[1]
+            != (perm_eval[0]
                 + r * (perm_eval[1]
                     + r * (perm_eval[2]
                         + r * (witness_eval[0] + r * (witness_eval[1] + r * witness_eval[2])))))
                 * MultiLinearPoly::eval_eq(&prod_point[..nv].to_vec(), &point)
-        );
-        PC::verify(
+        {
+            return false;
+        }
+        if !PC::verify(
             pp,
             vec![&self.verifier_key.commitment, &witness_pc],
             point,
@@ -138,7 +165,9 @@ impl<F: Field, PC: PolyCommitVerifier<F>> Verifier<F, PC> {
             ],
             &mut transcript,
             &mut proof,
-        );
+        ) {
+            return false;
+        }
         true
     }
 }

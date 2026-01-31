@@ -18,7 +18,7 @@ use super::{CommitmentSerde, PolyCommitProver, PolyCommitVerifier};
 pub struct MerkleRoot([u8; HASH_SIZE]);
 
 impl CommitmentSerde for MerkleRoot {
-    fn size(nv: usize, np: usize) -> usize {
+    fn size(_nv: usize, _np: usize) -> usize {
         HASH_SIZE
     }
 
@@ -26,7 +26,7 @@ impl CommitmentSerde for MerkleRoot {
         buffer.copy_from_slice(&self.0);
     }
 
-    fn deserialize_from(proof: &mut Proof, nv: usize, np: usize) -> Self {
+    fn deserialize_from(proof: &mut Proof, _nv: usize, _np: usize) -> Self {
         let root = proof.get_next_hash();
         Self(root)
     }
@@ -64,7 +64,6 @@ impl<F: Field> QueryResult<F> {
             })
             .collect();
         let res = merkle_verifier.verify(self.proof_bytes.clone(), leaf_indices, &leaves);
-        assert!(res);
         res
     }
 }
@@ -357,11 +356,13 @@ impl<F: FftField> PolyCommitVerifier<F> for BaseFoldVerifier<F> {
                             })
                             .collect(),
                     };
-                    assert!(query.verify_merkle_tree(
+                    if !query.verify_merkle_tree(
                         &leaf_indices,
                         2 * verifiers[j].poly_num,
-                        &verifiers[j].commit
-                    ));
+                        &verifiers[j].commit,
+                    ) {
+                        return false;
+                    }
                 }
                 let poly_values = (0..leaf_indices.len() * 2)
                     .into_iter()
@@ -402,7 +403,9 @@ impl<F: FftField> PolyCommitVerifier<F> for BaseFoldVerifier<F> {
                         .zip(proof_values.into_iter())
                         .collect(),
                 };
-                query.verify_merkle_tree(&leaf_indices, 2, &commits[i - 1]);
+                if !query.verify_merkle_tree(&leaf_indices, 2, &commits[i - 1]) {
+                    return false;
+                }
                 query_results.push(query);
             }
         }
@@ -426,7 +429,6 @@ impl<F: FftField> PolyCommitVerifier<F> for BaseFoldVerifier<F> {
                         * ((x - nx) * F::from(pp.mult_subgroups[i].element_inv_at(*j)) - sum);
                 if i < pp.variable_num - 1 {
                     if new_v != query_results[i + 1].proof_values[j].double() {
-                        println!("{} {}", file!(), line!());
                         return false;
                     }
                 } else {

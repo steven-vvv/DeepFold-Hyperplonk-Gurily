@@ -30,14 +30,7 @@ impl BabyBear {
     pub const fn new(value: u32) -> Self {
         Self { value: to_monty(value % PRIME) }
     }
-    
-    /// Create a BabyBear element directly from Montgomery representation
-    /// SAFETY: The caller must ensure value < PRIME
-    #[inline]
-    pub(crate) const fn from_monty_unchecked(value: u32) -> Self {
-        Self { value }
-    }
-    
+
     /// Get the value in standard (non-Montgomery) representation
     #[inline]
     pub const fn to_canonical(&self) -> u32 {

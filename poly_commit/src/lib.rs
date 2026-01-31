@@ -37,6 +37,7 @@ pub trait PolyCommitVerifier<F: Field>: Clone {
     ) -> bool;
 }
 
+#[cfg(test)]
 mod tests {
     use arithmetic::{
         field::{

@@ -130,7 +130,7 @@ impl<F: Field> PolyCommitVerifier<F> for ShufflePcVerifier<F> {
     type Param = ();
     type Commitment = RawCommitment<F>;
 
-    fn new(_pp: &Self::Param, commit: Self::Commitment, poly_num: usize) -> Self {
+    fn new(_pp: &Self::Param, commit: Self::Commitment, _poly_num: usize) -> Self {
         ShufflePcVerifier { commit }
     }
 
@@ -167,13 +167,14 @@ impl<F: Field> PolyCommitVerifier<F> for ShufflePcVerifier<F> {
 
         for i in 0..evals.len() {
             for j in 0..evals[i].len() {
-                assert_eq!(
-                    evals[i][j],
-                    MultiLinearPoly::eval_multilinear(
+                if evals[i][j]
+                    != MultiLinearPoly::eval_multilinear(
                         &verifiers[i].commit.poly_evals[j],
-                        &new_point
+                        &new_point,
                     )
-                );
+                {
+                    return false;
+                }
             }
         }
 

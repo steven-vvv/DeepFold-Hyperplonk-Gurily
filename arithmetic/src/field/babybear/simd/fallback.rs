@@ -144,8 +144,6 @@ impl MulAssign for PackedBabyBearScalar {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::field::Field;
-    use rand::thread_rng;
     
     #[test]
     fn test_packed_scalar_basic() {

@@ -90,9 +90,6 @@ pub mod consts {
     /// One in Montgomery form (1 * 2^32 mod P)
     pub const MONTY_ONE: u32 = to_monty(1);
     
-    /// Two in Montgomery form
-    pub const MONTY_TWO: u32 = to_monty(2);
-    
     /// Inverse of 2 in Montgomery form: (P + 1) / 2 in monty
     pub const MONTY_INV_TWO: u32 = to_monty((PRIME + 1) / 2);
     

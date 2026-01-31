@@ -13,11 +13,7 @@ mod tests {
         },
         mul_group::Radix2Group,
     };
-    use poly_commit::{
-        deepfold::{DeepFoldParam, DeepFoldProver, DeepFoldVerifier},
-        nil::{NilPcProver, NilPcVerifier},
-        shuffle::{ShufflePcProver, ShufflePcVerifier},
-    };
+    use poly_commit::nil::{NilPcProver, NilPcVerifier};
     use rand::thread_rng;
 
     use crate::{circuit::Circuit, prover::Prover, verifier::Verifier};

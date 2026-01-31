@@ -64,12 +64,14 @@ impl ProdEqCheck {
         var_num: usize,
         transcript: &mut Transcript,
         proof: &mut Proof,
-    ) -> (Vec<F>, [F; 2]) {
+    ) -> Option<(Vec<F>, [F; 2])> {
         let mut v0: F = proof.get_next_and_step();
         let mut v1: F = proof.get_next_and_step();
         let mut v2: F = proof.get_next_and_step();
         let mut v3: F = proof.get_next_and_step();
-        assert_eq!(v0 * v1, v2 * v3);
+        if v0 * v1 != v2 * v3 {
+            return None;
+        }
         transcript.append_f(v0);
         transcript.append_f(v1);
         transcript.append_f(v2);
@@ -77,21 +79,19 @@ impl ProdEqCheck {
         let mut point = vec![transcript.challenge_f::<F>()];
         let mut y = [v0 + (v1 - v0) * point[0], v2 + (v3 - v2) * point[0]];
         for i in 1..var_num {
-            let (mut new_point, new_y) = Sumcheck::verify(y, 3, i, transcript, proof);
+            let (mut new_point, new_y) = Sumcheck::verify(y, 3, i, transcript, proof)?;
             v0 = proof.get_next_and_step();
             v1 = proof.get_next_and_step();
-            assert_eq!(
-                v0 * v1 * MultiLinearPoly::eval_eq(&new_point, &point),
-                new_y[0]
-            );
+            if v0 * v1 * MultiLinearPoly::eval_eq(&new_point, &point) != new_y[0] {
+                return None;
+            }
             transcript.append_f(v0);
             transcript.append_f(v1);
             v2 = proof.get_next_and_step();
             v3 = proof.get_next_and_step();
-            assert_eq!(
-                v2 * v3 * MultiLinearPoly::eval_eq(&new_point, &point),
-                new_y[1]
-            );
+            if v2 * v3 * MultiLinearPoly::eval_eq(&new_point, &point) != new_y[1] {
+                return None;
+            }
             transcript.append_f(v2);
             transcript.append_f(v3);
             let r = transcript.challenge_f();
@@ -99,7 +99,7 @@ impl ProdEqCheck {
             point.append(&mut new_point);
             y = [v0 + (v1 - v0) * r, v2 + (v3 - v2) * r];
         }
-        (point, y)
+        Some((point, y))
     }
 }
 
@@ -126,7 +126,9 @@ mod tests {
         let mut proof = transcript.proof;
 
         let mut transcript = Transcript::new();
-        let (new_point, y) = ProdEqCheck::verify(12, &mut transcript, &mut proof);
+        let (new_point, y) =
+            ProdEqCheck::verify(12, &mut transcript, &mut proof)
+                .expect("prod-eq verification failed");
         assert_eq!(MultiLinearPoly::eval_multilinear_ext(&evals, &point), y[0]);
         assert_eq!(
             MultiLinearPoly::eval_multilinear_ext(&evals_rev, &new_point),
