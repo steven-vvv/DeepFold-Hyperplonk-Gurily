@@ -4,6 +4,13 @@ use std::time::Instant;
 use arithmetic::field::{batch_inverse, Field};
 use util::fiat_shamir::{Proof, Transcript};
 
+#[cfg(all(feature = "babybear", feature = "simd"))]
+use arithmetic::field::babybear::{simd::PackedBabyBear, BabyBear};
+#[cfg(all(feature = "babybear", feature = "simd"))]
+use arithmetic::field::babybear::simd::PackedField;
+#[cfg(all(feature = "babybear", feature = "simd"))]
+use std::any::TypeId;
+
 static SUMCHECK_PROVE_TIME_US: AtomicU64 = AtomicU64::new(0);
 
 pub struct Sumcheck;
@@ -17,7 +24,47 @@ impl Sumcheck {
         SUMCHECK_PROVE_TIME_US.load(Ordering::Relaxed)
     }
 
-    fn fold_next_domain<F: Field>(poly_evals: &mut Vec<F>, m: usize, challenge: F) {
+    #[cfg(all(feature = "babybear", feature = "simd"))]
+    fn fold_next_domain_babybear(poly_evals: &mut Vec<BabyBear>, m: usize, challenge: BabyBear) {
+        let mut out = vec![BabyBear::zero(); m];
+        let width = PackedBabyBear::WIDTH;
+        let challenge_packed = PackedBabyBear::broadcast(challenge);
+
+        let mut j = 0;
+        while j + width <= m {
+            let base = j * 2;
+            let v0 = PackedBabyBear::from_fn(|lane| poly_evals[base + lane * 2]);
+            let v1 = PackedBabyBear::from_fn(|lane| poly_evals[base + lane * 2 + 1]);
+            let diff = v1 - v0;
+            let res = v0 + diff * challenge_packed;
+            res.store(&mut out[j..]);
+            j += width;
+        }
+
+        for idx in j..m {
+            let v0 = poly_evals[idx * 2];
+            let v1 = poly_evals[idx * 2 + 1];
+            out[idx] = v0 + (v1 - v0) * challenge;
+        }
+
+        poly_evals[..m].copy_from_slice(&out);
+        poly_evals.truncate(m);
+    }
+
+    fn fold_next_domain<F: Field + 'static>(poly_evals: &mut Vec<F>, m: usize, challenge: F) {
+        #[cfg(all(feature = "babybear", feature = "simd"))]
+        {
+            if TypeId::of::<F>() == TypeId::of::<BabyBear>() {
+                // Safety: TypeId check ensures F == BabyBear.
+                let poly_bb = unsafe {
+                    &mut *(poly_evals as *mut Vec<F> as *mut Vec<BabyBear>)
+                };
+                let challenge_bb = unsafe { std::mem::transmute_copy::<F, BabyBear>(&challenge) };
+                Self::fold_next_domain_babybear(poly_bb, m, challenge_bb);
+                return;
+            }
+        }
+
         for j in 0..m {
             poly_evals[j] =
                 poly_evals[j * 2] + (poly_evals[j * 2 + 1] - poly_evals[j * 2]) * challenge;
@@ -25,7 +72,7 @@ impl Sumcheck {
         poly_evals.truncate(m)
     }
 
-    pub fn prove<F: Field, const N: usize, const M: usize, FUNC: Fn([F; N]) -> [F; M]>(
+    pub fn prove<F: Field + 'static, const N: usize, const M: usize, FUNC: Fn([F; N]) -> [F; M]>(
         mut evals: [Vec<F>; N],
         degree: usize,
         transcript: &mut Transcript,

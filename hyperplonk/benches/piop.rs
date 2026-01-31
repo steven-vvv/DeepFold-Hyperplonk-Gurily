@@ -27,7 +27,7 @@ fn main() {
     .unwrap();
 }
 
-fn bench_mock_circuit<F: Field>(nv: usize, repetition: usize) -> (usize, usize, usize, usize) {
+fn bench_mock_circuit<F: Field + 'static>(nv: usize, repetition: usize) -> (usize, usize, usize, usize) {
     let num_gates = 1u32 << nv;
     let mock_circuit = Circuit::<F> {
         permutation: [

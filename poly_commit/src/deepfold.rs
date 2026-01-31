@@ -10,6 +10,13 @@ use util::{
     merkle_tree::{MerkleTreeProver, MerkleTreeVerifier, HASH_SIZE},
 };
 
+#[cfg(all(feature = "babybear", feature = "simd"))]
+use arithmetic::field::babybear::{simd::PackedBabyBear, BabyBear};
+#[cfg(all(feature = "babybear", feature = "simd"))]
+use arithmetic::field::babybear::simd::PackedField;
+#[cfg(all(feature = "babybear", feature = "simd"))]
+use std::any::TypeId;
+
 use crate::Transcript;
 
 use super::{CommitmentSerde, PolyCommitProver, PolyCommitVerifier};
@@ -127,13 +134,74 @@ pub struct DeepFoldProver<F: FftField> {
     poly: Vec<Vec<F::BaseField>>,
 }
 
-impl<F: FftField> DeepFoldProver<F> {
+#[cfg(all(feature = "babybear", feature = "simd"))]
+fn evaluate_next_domain_babybear(
+    last_interpolation: &[BabyBear],
+    pp: &DeepFoldParam<BabyBear>,
+    round: usize,
+    challenge: BabyBear,
+) -> Vec<BabyBear> {
+    let len = pp.mult_subgroups[round].size();
+    let half = len / 2;
+    let subgroup = &pp.mult_subgroups[round];
+    let mut res = vec![BabyBear::zero(); half];
+
+    let width = PackedBabyBear::WIDTH;
+    let challenge_packed = PackedBabyBear::broadcast(challenge);
+    let inv_2_packed = PackedBabyBear::broadcast(BabyBear::inv_2());
+
+    let mut i = 0;
+    while i + width <= half {
+        let x = PackedBabyBear::from_slice(&last_interpolation[i..]);
+        let nx = PackedBabyBear::from_slice(&last_interpolation[i + half..]);
+        let sum = x + nx;
+        let diff = x - nx;
+        let inv = PackedBabyBear::from_fn(|lane| subgroup.element_inv_at(i + lane));
+        let tmp = diff * inv - sum;
+        let new_v = sum + challenge_packed * tmp;
+        let out = new_v * inv_2_packed;
+        out.store(&mut res[i..]);
+        i += width;
+    }
+
+    for idx in i..half {
+        let x = last_interpolation[idx];
+        let nx = last_interpolation[idx + half];
+        let sum = x + nx;
+        let inv = subgroup.element_inv_at(idx);
+        let new_v = sum + challenge * ((x - nx) * inv - sum);
+        res[idx] = new_v * BabyBear::inv_2();
+    }
+
+    res
+}
+
+impl<F: FftField + 'static> DeepFoldProver<F> {
     fn evaluate_next_domain(
         last_interpolation: &Vec<F>,
         pp: &DeepFoldParam<F>,
         round: usize,
         challenge: F,
     ) -> Vec<F> {
+        #[cfg(all(feature = "babybear", feature = "simd"))]
+        {
+            if TypeId::of::<F>() == TypeId::of::<BabyBear>() {
+                // Safety: TypeId check ensures F == BabyBear.
+                let last_bb = unsafe {
+                    std::slice::from_raw_parts(
+                        last_interpolation.as_ptr() as *const BabyBear,
+                        last_interpolation.len(),
+                    )
+                };
+                let pp_bb = unsafe {
+                    &*(pp as *const DeepFoldParam<F> as *const DeepFoldParam<BabyBear>)
+                };
+                let challenge_bb = unsafe { std::mem::transmute_copy::<F, BabyBear>(&challenge) };
+                let res_bb = evaluate_next_domain_babybear(last_bb, pp_bb, round, challenge_bb);
+                return unsafe { std::mem::transmute::<Vec<BabyBear>, Vec<F>>(res_bb) };
+            }
+        }
+
         let mut res = vec![];
         let len = pp.mult_subgroups[round].size();
         let subgroup = &pp.mult_subgroups[round];
@@ -148,7 +216,7 @@ impl<F: FftField> DeepFoldProver<F> {
     }
 }
 
-impl<F: FftField> PolyCommitProver<F> for DeepFoldProver<F> {
+impl<F: FftField + 'static> PolyCommitProver<F> for DeepFoldProver<F> {
     type Param = DeepFoldParam<F>;
     type Commitment = MerkleRoot;
 

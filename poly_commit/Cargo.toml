@@ -5,6 +5,15 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = ["babybear", "simd"]
+babybear = ["arithmetic/babybear"]
+goldilocks = ["arithmetic/goldilocks"]
+simd = ["arithmetic/simd"]
+avx2 = ["arithmetic/avx2", "simd"]
+avx512 = ["arithmetic/avx512", "simd"]
+neon = ["arithmetic/neon", "simd"]
+
 [dependencies]
 arithmetic = { path = "../arithmetic" }
 util = { path = "../util" }

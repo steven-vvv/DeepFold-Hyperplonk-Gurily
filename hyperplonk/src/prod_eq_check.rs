@@ -6,7 +6,7 @@ use crate::sumcheck::Sumcheck;
 pub struct ProdEqCheck;
 
 impl ProdEqCheck {
-    pub fn prove<F: Field>(evals: [Vec<F>; 2], transcript: &mut Transcript) -> Vec<F> {
+    pub fn prove<F: Field + 'static>(evals: [Vec<F>; 2], transcript: &mut Transcript) -> Vec<F> {
         let var_num = evals[0].len().ilog2() as usize;
         let mut products = evals.map(|x| vec![x]);
         for i in 0..2 {

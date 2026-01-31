@@ -5,8 +5,24 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = ["babybear", "simd"]
+babybear = []
+goldilocks = []
+simd = []
+avx2 = ["simd"]
+avx512 = ["simd"]
+neon = ["simd"]
+
 [dependencies]
 rand = "0.8.5"
 ark-ec = "0.4"
 ark-ff = "0.4"
 ark-bn254 = "0.4"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "field_benchmark"
+harness = false

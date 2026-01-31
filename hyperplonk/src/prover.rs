@@ -14,7 +14,7 @@ pub struct Prover<F: Field, PC: PolyCommitProver<F>> {
     pub prover_key: ProverKey<F, PC>,
 }
 
-impl<F: Field, PC: PolyCommitProver<F>> Prover<F, PC> {
+impl<F: Field + 'static, PC: PolyCommitProver<F>> Prover<F, PC> {
     pub fn prove(&self, pp: &PC::Param, nv: usize, witness: [Vec<F::BaseField>; 3]) -> Proof {
         let mut transcript = Transcript::new();
         let witness_pc = PC::new(pp, &witness);

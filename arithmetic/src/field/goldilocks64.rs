@@ -148,7 +148,11 @@ fn reduce128(x: u128) -> Goldilocks64 {
     }
     let t1 = x_hi_lo * EPSILON;
     let t2 = unsafe { add_no_canonicalize_trashing_input(t0, t1) };
-    Goldilocks64 { v: t2 }
+    let mut res = t2;
+    if res >= MOD {
+        res -= MOD;
+    }
+    Goldilocks64 { v: res }
 }
 
 #[inline]

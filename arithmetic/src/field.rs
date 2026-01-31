@@ -10,6 +10,12 @@ use rand::RngCore;
 pub mod bn_254;
 pub mod goldilocks64;
 
+#[cfg(feature = "babybear")]
+pub mod babybear;
+
+#[cfg(feature = "babybear")]
+pub use babybear::{BabyBear, BabyBearExt4};
+
 pub trait Field:
     Copy
     + Clone
